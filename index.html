@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clustering Visualization</title>
+    <link rel="stylesheet" href="./bootstrap.min.css">
+    <style>
+        #chart {
+            min-height: 400px;
+        }
+        form {
+            max-width: 720px;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="container-fluid bg-dark">
+            <div class="container d-flex justify-content-between align-item-center">
+                <a href="#" class="navbar-brand text-white">Clustering Visualization</a>
+
+                <div>
+                    Contact:
+                    <a href="https://github.com/Salah-deco">GitHub</a>
+                    <a href="https://www.linkedin.com/in/salaheddine-ait-seddik-629800198/">LinkedIn</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <div class="container-fluid my-3">
+        <h1 class="text-center my-3">Clustering Visualization</h1>
+        <form action="" class="">
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <p>1. Select a file to render the chart.</p>
+                <p>2. Select the separator used in the file.</p>
+                <p>3. Select the columns for the cluster, x-axis, y-axis and tooltip.</p>
+                <p>4. Click on the Render button to render the chart.</p>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+
+            <div class="row">
+                <div class="form-group col-9 pe-1">
+                    <label for="file" class="">CSV File</label>
+                    <input class="form-control" type="file" id="file">
+                </div>
+                <div class="form-group col-3 ps-1">
+                    <label for="sep" class="">Separator</label>
+                    <select name="sep" id="sep" class="form-select">
+                        <option value="," selected>Comma</option>
+                        <option value=";">Semicolon</option>
+                    </select>
+                </div>
+            </div>
+            <div class="my-3">
+                <div class="row mb-2">
+                    <label for="cluster" class="col-4">Cluster Column</label>
+                    <div class="col-8">
+                        <select name="cluster" id="cluster" class="form-select" aria-label="Default select example"></select>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-6 pe-1">
+                        <label for="x" class="">X-axis</label>
+                        <select name="x" id="x" class="form-select"></select>
+                    </div>
+                    <div class="col-6 ps-1">
+                        <label for="y" class="">Y-axis</label>
+                        <select name="y" id="y" class="form-select"></select>
+                    </div>
+                </div>
+                <div class="row m-0">
+                    <label for="tooltip" class="p-0">Tooltip</label>
+                    <select name="tooltip" id="tooltip" class="form-select" size="3" multiple></select>
+                </div>
+            </div>
+            <div class="text-end">
+                <button type="button" class="btn btn-primary" id="render" disabled>Render</button>
+            </div>
+        </form>
+        <div id="chart" class="m-3"></div>
+    </div>
+    <script src="./jquery-3.5.1.min.js"></script>
+    <script src="./bootstrap.bundle.min.js"></script>
+    <script src="./apexcharts.min.js"></script>
+    <script>
+        var FILE_CONTENT;
+        var DATA = [];
+        var COLUMNS = [];
+        var fileInput = document.getElementById('file');
+        var sepInput = document.getElementById('sep');
+        if (fileInput) {
+            fileInput.addEventListener('change', function() {
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    FILE_CONTENT = e.target.result;
+                    setup();
+                };
+
+                // Enable Render Button
+                const renderButton = document.getElementById('render');
+                renderButton.disabled = false;
+                reader.readAsText(file);
+            });
+
+            sepInput.addEventListener('change', function() {
+                setup();
+            });
+        }
+
+        function setup() {
+            const lines = FILE_CONTENT.split('\n');
+            const sep = sepInput.value;
+            COLUMNS = lines.shift().split(sep);
+            DATA = lines.map(line => line.split(sep));
+            const cluster = document.getElementById('cluster');
+            const x = document.getElementById('x');
+            const y = document.getElementById('y');
+            const tooltip = document.getElementById('tooltip');
+
+            cluster.innerHTML = '';
+            x.innerHTML = '';
+            y.innerHTML = '';
+            tooltip.innerHTML = '';
+
+            COLUMNS.forEach((column, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.text = column;
+                cluster.appendChild(option);
+                if (column == 'Cluster') option.selected = true;
+                x.appendChild(option.cloneNode(true));
+                y.appendChild(option.cloneNode(true));
+                tooltip.appendChild(option.cloneNode(true));
+            });
+        }
+
+        document.getElementById('render').addEventListener('click', render);
+        function render() {
+            document.getElementById('chart').innerHTML = '';
+
+            // Get selected values
+            const cluster = document.getElementById('cluster').value;
+            const x = document.getElementById('x').value;
+            const y = document.getElementById('y').value;
+            const selectedTooltip = Array.from(document.getElementById('tooltip').selectedOptions).map(option => option.value);
+            const series = DATA.reduce((acc, row) => {
+                const clusterIndex = row[cluster];
+                if (!acc[clusterIndex]) {
+                    acc[clusterIndex] = [];
+                }
+                // Initialize an empty object to hold the cluster data
+                const clusterData = {
+                    x: parseFloat(row[x]),
+                    y: parseFloat(row[y])
+                };
+
+                // Iterate over each selected tooltip index
+                selectedTooltip.forEach(index => {
+                    // Assign key-value pairs to the cluster data object
+                    clusterData[COLUMNS[index]] = row[index];
+                });
+
+                // Push the cluster data object to the cc array
+                acc[clusterIndex].push(clusterData);
+                return acc;
+            }, {});
+
+            const seriesData = Object.keys(series).map((key, index) => {
+                return {
+                    name: `Cluster ${key}`,
+                    data: series[key]
+                };
+            });
+
+            const options = {
+                series: seriesData,
+                chart: {
+                    height: 350,
+                    type: 'scatter',
+                    zoom: {
+                        enabled: true,
+                        type: 'xy'
+                    },
+                    toolbar: {
+                        show: true,
+                        tools: {
+                            download: true,
+                            selection: true,
+                            zoom: true,
+                            zoomin: true,
+                            zoomout: true,
+                            pan: true,
+                            reset: true | '<img src="/static/icons/reset.png" width="20">',
+                            customIcons: []
+                        },
+                        autoSelected: 'zoom'
+                    }
+                },
+                xaxis: {
+                    tickAmount: 10,
+                    labels: {
+                        formatter: function(val) {
+                            return parseFloat(val).toFixed(2)
+                        }
+                    }
+                },
+                yaxis: {
+                    tickAmount: 7,
+                    labels: {
+                        formatter: function(val) {
+                            return parseFloat(val).toFixed(2)
+                        }
+                    }
+                },
+                tooltip: {
+                    custom: function({series, seriesIndex, dataPointIndex, w}) {
+                        const data = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+                        let html = document.createElement('ul');
+                        html.className = 'list-unstyled m-3';
+                        html.innerHTML = Object.entries(data).map(([key, value], index) => `<li><b>${key}</b>: ${value}</li>`).join('');
+                        return html.outerHTML;
+                    }
+                },
+                title: {
+                    text: `${COLUMNS[x]} vs ${COLUMNS[y]}`,
+                    align: 'left',
+                    margin: 10,
+                    offsetX: 0,
+                    offsetY: 0,
+                    floating: false,
+                    style: {
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    fontFamily: undefined,
+                    color: '#263238'
+                    },
+                }
+            };
+
+            const chart = new ApexCharts(document.querySelector("#chart"), options);
+            chart.render();
+        }
+    </script>
+
+    <!-- <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+    
+        // Your web app's Firebase configuration
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        const firebaseConfig = {
+        apiKey: "AIzaSyCFttUU2sTlGXEKc6bQgsLlXX_ufMTW8vc",
+        authDomain: "clustering-visualization.firebaseapp.com",
+        projectId: "clustering-visualization",
+        storageBucket: "clustering-visualization.appspot.com",
+        messagingSenderId: "569611162516",
+        appId: "1:569611162516:web:ad7c704d62de3130d07581",
+        measurementId: "G-0GJ8DL3F1J"
+        };
+    
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+    </script> -->
+</body>
+</html>
